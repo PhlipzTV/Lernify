@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Lernify</title>
+<!-- Lernify: Lern-App auf Basis eigener Schuldokumente (PWA / Standalone-Version) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#26344A">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style>
+  :root{
+    --paper:#EDE9E1;
+    --paper-dark:#E2DCCE;
+    --ink:#26344A;
+    --ink-light:#5B6B85;
+    --accent-gold:#C79A3D;
+    --accent-red:#A63D40;
+    --card:#FFFFFF;
+    --border:#D8D2C4;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  .app{
+    font-family:'Inter',sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+  .topbar{
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    padding:22px 28px 18px;
+    border-bottom:2px solid var(--ink);
+  }
+  .settings-btn{
+    margin-left:auto;
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    background:var(--card);
+    border:1.5px solid var(--border);
+    border-radius:999px;
+    padding:6px 14px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .settings-btn:hover{border-color:var(--ink);}
+  .settings-panel{
+    padding:16px 28px;
+    border-bottom:2px solid var(--ink);
+    background:#FFFDF8;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .settings-panel .row{display:flex; gap:8px; max-width:640px;}
+  .settings-panel input[type=password]{
+    flex:1;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    border:1.5px solid var(--ink);
+    border-radius:6px;
+    padding:8px;
+  }
+  .settings-panel button{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    border:none;
+    border-radius:6px;
+    padding:0 14px;
+    background:var(--ink);
+    color:var(--paper);
+    cursor:pointer;
+  }
+  .settings-panel button.secondary{
+    background:transparent;
+    color:var(--accent-red);
+    border:1.5px solid var(--accent-red);
+  }
+  .topbar h1{
+    font-family:'Lora',serif;
+    font-weight:700;
+    font-size:26px;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .topbar .tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--ink-light);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:3px 10px;
+    background:var(--card);
+  }
+  .layout{
+    display:flex;
+    flex:1;
+    min-height:0;
+  }
+  .sidebar{
+    width:250px;
+    flex-shrink:0;
+    border-right:2px solid var(--ink);
+    padding:18px 14px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .sidebar h2{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--ink-light);
+    margin:4px 0 2px 4px;
+  }
+  .doc-tab{
+    position:relative;
+    background:var(--card);
+    border:1.5px solid var(--border);
+    border-radius:8px;
+    padding:10px 12px 10px 16px;
+    cursor:pointer;
+    font-size:13.5px;
+    font-weight:500;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:6px;
+    transition:border-color .15s, transform .1s;
+  }
+  .doc-tab::before{
+    content:"";
+    position:absolute;
+    left:0; top:10px; bottom:10px;
+    width:4px;
+    border-radius:2px;
+    background:var(--accent-gold);
+    opacity:0;
+  }
+  .doc-tab:hover{border-color:var(--ink-light);}
+  .doc-tab.active{border-color:var(--ink); background:#FFFDF8;}
+  .doc-tab.active::before{opacity:1;}
+  .doc-tab .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .doc-tab .del{
+    opacity:0; font-size:15px; color:var(--accent-red); background:none;border:none;cursor:pointer;line-height:1;padding:2px;
+  }
+  .doc-tab:hover .del{opacity:0.7;}
+  .doc-tab .del:hover{opacity:1;}
+
+  .add-btn{
+    margin-top:6px;
+    border:1.5px dashed var(--ink-light);
+    border-radius:8px;
+    background:transparent;
+    color:var(--ink-light);
+    padding:10px;
+    font-size:13px;
+    font-weight:500;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .add-btn:hover{border-color:var(--ink); color:var(--ink);}
+  #fileInput{display:none;}
+  #folderInput{display:none;}
+
+  .add-panel{
+    border:1.5px solid var(--border);
+    border-radius:8px;
+    padding:10px;
+    background:var(--card);
+    font-size:12.5px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .add-panel textarea{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:6px;
+    resize:vertical;
+    min-height:60px;
+  }
+  .add-panel input[type=text]{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:6px;
+  }
+  .add-panel button{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    border:none;
+    border-radius:6px;
+    padding:7px;
+    background:var(--ink);
+    color:var(--paper);
+    cursor:pointer;
+  }
+
+  .search-box select, .add-panel select{
+    font-family:'Inter',sans-serif;
+    font-size:12px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:6px;
+    background:var(--card);
+    color:var(--ink);
+  }
+  .lib-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--ink-light);
+    margin-top:2px;
+  }
+  .lib-group{margin-bottom:2px;}
+  .lib-group-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    cursor:pointer;
+    padding:9px 11px;
+    border:1.5px solid var(--border);
+    border-radius:8px;
+    background:var(--card);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    font-weight:600;
+    color:var(--ink);
+  }
+  .lib-group-header:hover{border-color:var(--ink-light);}
+  .lib-group.expanded .lib-group-header{border-color:var(--ink); background:#FFFDF8;}
+  .lib-group-header .left{display:flex; align-items:center; gap:7px; overflow:hidden;}
+  .lib-group-header .lname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lib-group-header .count{
+    color:var(--ink-light);
+    font-weight:500;
+    font-size:10.5px;
+    flex-shrink:0;
+  }
+  .lib-group-header .caret{
+    display:inline-block;
+    transition:transform .15s;
+    font-size:9px;
+    flex-shrink:0;
+  }
+  .lib-group.expanded .lib-group-header .caret{transform:rotate(90deg);}
+  .lib-group-docs{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    margin:6px 0 10px 6px;
+    padding-left:9px;
+    border-left:2px solid var(--border);
+  }
+  .lib-chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:2px;
+  }
+  .lib-chip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    border:1.5px solid var(--border);
+    border-radius:999px;
+    padding:4px 10px;
+    cursor:pointer;
+    color:var(--ink-light);
+    background:var(--card);
+  }
+  .lib-chip:hover{border-color:var(--ink-light);}
+  .lib-chip.active{
+    border-color:var(--ink);
+    background:var(--ink);
+    color:var(--paper);
+  }
+  .doc-tab .lib-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    color:var(--accent-gold);
+    display:block;
+    margin-top:1px;
+  }
+
+  .search-box{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    margin-bottom:4px;
+  }
+  .search-box .row{display:flex; gap:6px;}
+  .search-box input[type=text]{
+    flex:1;
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    border:1.5px solid var(--ink);
+    border-radius:6px;
+    padding:8px 8px;
+  }
+  .search-box button{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    border:none;
+    border-radius:6px;
+    padding:0 12px;
+    background:var(--ink);
+    color:var(--paper);
+    cursor:pointer;
+  }
+  .sep{
+    height:2px;
+    background:var(--ink);
+    opacity:0.15;
+    margin:6px 0 2px;
+    border:none;
+  }
+
+  .search-answer{
+    background:var(--card);
+    border:1.5px solid var(--border);
+    border-left:5px solid var(--ink);
+    border-radius:10px;
+    padding:22px 26px;
+    font-size:14.5px;
+    line-height:1.65;
+    max-width:720px;
+  }
+  .search-answer h3{font-family:'Lora',serif; font-size:17px; margin:16px 0 6px;}
+  .search-answer h3:first-child{margin-top:0;}
+  .search-answer ul{margin:4px 0 12px; padding-left:20px;}
+  .sources{
+    margin-top:16px;
+    padding-top:14px;
+    border-top:1px dashed var(--border);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-light);
+  }
+  .sources .src-chip{
+    display:inline-block;
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:2px 9px;
+    margin:2px 4px 2px 0;
+    background:var(--paper);
+  }
+  .no-docs-warn{
+    font-size:12.5px;
+    color:var(--accent-red);
+    background:#FBEDEC;
+    border:1px solid #E9C9C7;
+    border-radius:8px;
+    padding:8px 10px;
+  }
+
+  .main{
+    flex:1;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    padding:24px 32px;
+    overflow-y:auto;
+  }
+  .empty-state{
+    margin:auto;
+    text-align:center;
+    color:var(--ink-light);
+    max-width:340px;
+  }
+  .empty-state .glyph{
+    font-family:'Lora',serif;
+    font-size:40px;
+    margin-bottom:6px;
+  }
+  .doc-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .doc-header h2{
+    font-family:'Lora',serif;
+    font-size:22px;
+    margin:0;
+  }
+  .doc-header .meta{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-light);
+  }
+  .tabs{
+    display:flex;
+    gap:6px;
+    margin-bottom:20px;
+    border-bottom:2px solid var(--ink);
+  }
+  .tab-btn{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    background:none;
+    border:none;
+    padding:9px 16px;
+    cursor:pointer;
+    color:var(--ink-light);
+    border-radius:8px 8px 0 0;
+    position:relative;
+    top:2px;
+  }
+  .tab-btn.active{
+    color:var(--ink);
+    background:var(--card);
+    border:2px solid var(--ink);
+    border-bottom:2px solid var(--card);
+  }
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .gen-btn{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    border-radius:8px;
+    padding:11px 18px;
+    cursor:pointer;
+  }
+  .gen-btn:disabled{opacity:0.5;cursor:default;}
+  .gen-btn.secondary{
+    background:transparent;
+    color:var(--ink);
+    border:1.5px solid var(--ink);
+  }
+
+  .loading{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    color:var(--ink-light);
+    font-size:13.5px;
+    padding:20px 0;
+  }
+  .spinner{
+    width:16px;height:16px;
+    border:2.5px solid var(--border);
+    border-top-color:var(--accent-gold);
+    border-radius:50%;
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .lernzettel{
+    background:var(--card);
+    border:1.5px solid var(--border);
+    border-left:5px solid var(--accent-gold);
+    border-radius:10px;
+    padding:22px 26px;
+    font-size:14.5px;
+    line-height:1.65;
+    max-width:720px;
+  }
+  .lernzettel h3{
+    font-family:'Lora',serif;
+    font-size:17px;
+    margin:18px 0 6px;
+  }
+  .lernzettel h3:first-child{margin-top:0;}
+  .lernzettel ul{margin:4px 0 12px; padding-left:20px;}
+  .lernzettel li{margin-bottom:4px;}
+
+  .deck{
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+  }
+  .flashcard{
+    width:230px;
+    height:150px;
+    perspective:1000px;
+    cursor:pointer;
+  }
+  .flashcard-inner{
+    position:relative;
+    width:100%;height:100%;
+    transition:transform .5s;
+    transform-style:preserve-3d;
+  }
+  .flashcard.flipped .flashcard-inner{transform:rotateY(180deg);}
+  .flashcard-face{
+    position:absolute;
+    inset:0;
+    backface-visibility:hidden;
+    border-radius:10px;
+    border:1.5px solid var(--border);
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    font-size:13.5px;
+    line-height:1.4;
+    background:var(--card);
+    box-shadow:2px 3px 0 var(--border);
+  }
+  .flashcard-face .tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    color:var(--accent-gold);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    margin-bottom:8px;
+  }
+  .flashcard-face .txt{overflow-y:auto;}
+  .flashcard-back{transform:rotateY(180deg); background:#FFFDF5;}
+
+  .task-list{display:flex; flex-direction:column; gap:12px; max-width:680px;}
+  .task{
+    background:var(--card);
+    border:1.5px solid var(--border);
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  .task .q{font-weight:600; font-size:14px; margin-bottom:8px;}
+  .task .reveal-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    background:none;
+    border:1px solid var(--ink-light);
+    border-radius:6px;
+    padding:4px 10px;
+    cursor:pointer;
+    color:var(--ink-light);
+  }
+  .task .a{
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px dashed var(--border);
+    font-size:13.5px;
+    color:var(--ink);
+    display:none;
+  }
+  .task .a.shown{display:block;}
+
+  .err{
+    color:var(--accent-red);
+    font-size:13px;
+    padding:10px 0;
+  }
+  .hint{
+    font-size:12px;
+    color:var(--ink-light);
+    margin-top:8px;
+    max-width:600px;
+  }
+</style>
+
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Lernify</h1>
+    <span class="tag">Lernt nur aus deinen Unterlagen</span>
+    <button id="settingsBtn" class="settings-btn" title="API-Key einstellen">⚙ API-Key</button>
+  </div>
+  <div class="settings-panel" id="settingsPanel" style="display:none">
+    <label class="lib-label">Anthropic-API-Key (für Lernzettel, Karteikarten, Aufgaben &amp; Suche)</label>
+    <div class="row">
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+      <button id="apiKeySave">Speichern</button>
+      <button id="apiKeyClear" class="secondary">Entfernen</button>
+    </div>
+    <p class="hint">Der Key wird ausschließlich lokal in deinem Browser gespeichert (IndexedDB) und nur direkt an api.anthropic.com gesendet — nirgendwo sonst hin. Ohne Key funktionieren PDF-Upload und die Bibliotheksverwaltung trotzdem, nur die KI-Funktionen brauchen ihn. Einen Key erstellst du unter <span style="text-decoration:underline">console.anthropic.com</span>.</p>
+    <p id="apiKeyStatus" class="hint"></p>
+  </div>
+  <div class="layout">
+    <div class="sidebar">
+      <h2>Alle Dokumente durchsuchen</h2>
+      <div class="search-box">
+        <select id="searchLibrarySelect"></select>
+        <div class="row">
+          <input type="text" id="globalSearchInput" placeholder="z.B. Photosynthese">
+          <button id="globalSearchBtn">→</button>
+        </div>
+      </div>
+      <hr class="sep">
+      <h2>Bibliotheken</h2>
+      <div id="docList"></div>
+      <button class="add-btn" id="addToggle">+ Dokument hinzufügen</button>
+      <input type="file" id="fileInput" accept="application/pdf" multiple>
+      <input type="file" id="folderInput" webkitdirectory directory multiple>
+      <div class="add-panel" id="addPanel" style="display:none">
+        <label class="lib-label">Bibliothek / Fach</label>
+        <input type="text" id="libraryInput" list="libraryOptions" placeholder="z.B. Biologie">
+        <datalist id="libraryOptions"></datalist>
+        <button id="pickPdf">PDF(s) auswählen</button>
+        <button id="pickFolder">Ganzen Ordner auswählen</button>
+        <div style="font-size:10.5px;color:var(--ink-light);text-align:center;">(Ordner-Auswahl nur in Chrome/Edge)</div>
+        <div style="text-align:center;font-size:11px;color:var(--ink-light)">— oder —</div>
+        <input type="text" id="pasteName" placeholder="Titel (z.B. Biologie Kap. 4)">
+        <textarea id="pasteText" placeholder="Text hier einfügen..."></textarea>
+        <button id="pasteSave">Als Dokument speichern</button>
+      </div>
+    </div>
+    <div class="main" id="main">
+      <div class="empty-state">
+        <div class="glyph">✦</div>
+        Wähle links ein Dokument aus oder füge ein neues hinzu, um Lernzettel, Karteikarten und Aufgaben zu erstellen — basierend nur auf deinem Material.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+// ---------- IndexedDB-Speicher-Layer (Ersatz für Claude.ai's window.storage) ----------
+const DB_NAME = 'lernify-db';
+const STORE = 'kv';
+let _dbPromise = null;
+function openDB(){
+  if(_dbPromise) return _dbPromise;
+  _dbPromise = new Promise((resolve, reject)=>{
+    if(!('indexedDB' in window)){
+      reject(new Error('Dein Browser unterstützt kein IndexedDB — Speichern ist nicht möglich.'));
+      return;
+    }
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = ()=>{
+      const db = req.result;
+      if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, {keyPath:'key'});
+    };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error || new Error('IndexedDB konnte nicht geöffnet werden.'));
+  });
+  return _dbPromise;
+}
+const storage = {
+  async get(key){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).get(key);
+      req.onsuccess = ()=>{
+        if(!req.result) reject(new Error('Schlüssel nicht gefunden: '+key));
+        else resolve({key, value: req.result.value});
+      };
+      req.onerror = ()=> reject(req.error);
+    });
+  },
+  async set(key, value){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put({key, value});
+      tx.oncomplete = ()=> resolve({key, value});
+      tx.onerror = ()=> reject(tx.error);
+    });
+  },
+  async delete(key){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(key);
+      tx.oncomplete = ()=> resolve({key, deleted:true});
+      tx.onerror = ()=> reject(tx.error);
+    });
+  },
+  async list(prefix){
+    const db = await openDB();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).getAllKeys();
+      req.onsuccess = ()=>{
+        let keys = req.result;
+        if(prefix) keys = keys.filter(k => String(k).startsWith(prefix));
+        resolve({keys});
+      };
+      req.onerror = ()=> reject(req.error);
+    });
+  }
+};
+
+// ---------- API-Key-Verwaltung (ersetzt Claude.ai's eingebauten KI-Zugriff) ----------
+let apiKey = null;
+const CLAUDE_MODEL = 'claude-sonnet-5';
+
+async function loadApiKey(){
+  try{ const r = await storage.get('api-key'); apiKey = r.value; }catch(e){ apiKey = null; }
+}
+function updateApiKeyStatus(){
+  const status = document.getElementById('apiKeyStatus');
+  status.textContent = apiKey ? '✓ API-Key gespeichert (endet auf …' + apiKey.slice(-4) + ')' : 'Noch kein API-Key gespeichert.';
+}
+document.getElementById('settingsBtn').addEventListener('click', ()=>{
+  const p = document.getElementById('settingsPanel');
+  p.style.display = p.style.display==='none' ? 'flex' : 'none';
+  updateApiKeyStatus();
+});
+document.getElementById('apiKeySave').addEventListener('click', async ()=>{
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if(!val) return;
+  try{
+    await storage.set('api-key', val);
+    apiKey = val;
+    document.getElementById('apiKeyInput').value = '';
+    updateApiKeyStatus();
+  }catch(e){
+    document.getElementById('apiKeyStatus').textContent = 'Fehler beim Speichern: ' + (e.message||e);
+  }
+});
+document.getElementById('apiKeyClear').addEventListener('click', async ()=>{
+  try{ await storage.delete('api-key'); }catch(e){}
+  apiKey = null;
+  updateApiKeyStatus();
+});
+
+// Gemeinsamer Helfer für alle Claude-API-Aufrufe (direkter Browser-Zugriff mit eigenem Key)
+async function callClaude(userMessage){
+  if(!apiKey){
+    throw new Error('Kein API-Key hinterlegt. Klicke oben rechts auf "⚙ API-Key" und trage deinen Anthropic-API-Key ein.');
+  }
+  let response;
+  try{
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 1000,
+        messages: [{ role: "user", content: userMessage }]
+      })
+    });
+  }catch(e){
+    throw new Error('Netzwerkfehler — bist du online? (' + (e.message||e) + ')');
+  }
+  if(!response.ok){
+    let detail = '';
+    try{ const errBody = await response.json(); detail = errBody?.error?.message || ''; }catch(e){}
+    if(response.status === 401) throw new Error('API-Key ungültig oder abgelaufen. Bitte in den Einstellungen prüfen.');
+    if(response.status === 429) throw new Error('Rate-Limit erreicht — bitte kurz warten und erneut versuchen.');
+    throw new Error(`Anthropic-API-Fehler (${response.status}). ${detail}`);
+  }
+  const data = await response.json();
+  let raw = (data.content || []).map(b=>b.text||'').join('').trim();
+  return raw.replace(/^```(json|html)?/i,'').replace(/```$/,'').trim();
+}
+
+let docsIndex = [];      // [{id,name,createdAt,chars,library}]
+let activeId = null;
+let activeTab = 'summary';
+let mode = 'empty';      // 'empty' | 'doc' | 'search'
+let lastSearch = null;   // {query, html, sources}
+const DEFAULT_LIB = 'Allgemein';
+const flippedCards = new Set();
+
+function getLibraries(){
+  const set = new Set(docsIndex.map(d => d.library || DEFAULT_LIB));
+  return Array.from(set).sort();
+}
+
+async function loadIndex(){
+  try{
+    const r = await storage.get('docs-index');
+    docsIndex = r ? JSON.parse(r.value) : [];
+  }catch(e){ docsIndex = []; }
+}
+async function saveIndex(){
+  await storage.set('docs-index', JSON.stringify(docsIndex));
+}
+function genId(){ return 'd' + Date.now() + Math.random().toString(36).slice(2,7); }
+
+let expandedLibraries = new Set();
+
+function renderSearchLibrarySelect(){
+  const sel = document.getElementById('searchLibrarySelect');
+  const libs = getLibraries();
+  const current = sel.value || 'all';
+  sel.innerHTML = `<option value="all">Alle Bibliotheken durchsuchen</option>` +
+    libs.map(l => `<option value="${escapeHtml(l)}">Nur "${escapeHtml(l)}"</option>`).join('');
+  if([...sel.options].some(o=>o.value===current)) sel.value = current;
+}
+
+function renderLibraryDatalist(){
+  const dl = document.getElementById('libraryOptions');
+  dl.innerHTML = getLibraries().map(l => `<option value="${escapeHtml(l)}">`).join('');
+}
+
+function renderDocList(){
+  const el = document.getElementById('docList');
+  if(docsIndex.length === 0){
+    el.innerHTML = '<div style="font-size:12px;color:var(--ink-light);padding:4px;">Noch keine Dokumente</div>';
+    return;
+  }
+
+  const libs = getLibraries();
+  el.innerHTML = libs.map(lib => {
+    const docsInLib = docsIndex.filter(d => (d.library||DEFAULT_LIB)===lib);
+    const isExpanded = expandedLibraries.has(lib);
+    return `
+      <div class="lib-group ${isExpanded?'expanded':''}" data-lib="${escapeHtml(lib)}">
+        <div class="lib-group-header" data-toggle="${escapeHtml(lib)}">
+          <span class="left"><span class="caret">▸</span><span class="lname">${escapeHtml(lib)}</span></span>
+          <span class="count">${docsInLib.length}</span>
+        </div>
+        ${isExpanded ? `<div class="lib-group-docs">${docsInLib.map(d => `
+          <div class="doc-tab ${d.id===activeId?'active':''}" data-id="${d.id}">
+            <span class="name">${escapeHtml(d.name)}</span>
+            <button class="del" data-del="${d.id}" title="Löschen">✕</button>
+          </div>
+        `).join('')}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  el.querySelectorAll('.lib-group-header').forEach(h=>{
+    h.addEventListener('click', ()=>{
+      const lib = h.dataset.toggle;
+      if(expandedLibraries.has(lib)) expandedLibraries.delete(lib); else expandedLibraries.add(lib);
+      renderDocList();
+    });
+  });
+  el.querySelectorAll('.doc-tab').forEach(t=>{
+    t.addEventListener('click', (e)=>{
+      if(e.target.dataset.del) return;
+      selectDoc(t.dataset.id);
+    });
+  });
+  el.querySelectorAll('[data-del]').forEach(b=>{
+    b.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      await deleteDoc(b.dataset.del);
+    });
+  });
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function deleteDoc(id){
+  docsIndex = docsIndex.filter(d=>d.id!==id);
+  await saveIndex();
+  try{ await storage.delete('doc:'+id); }catch(e){}
+  try{ await storage.delete('content:'+id); }catch(e){}
+  if(activeId===id){ activeId=null; renderMain(); }
+  renderSearchLibrarySelect();
+  renderLibraryDatalist();
+  renderDocList();
+}
+
+async function addDocument(name, text, library){
+  const lib = (library || '').trim() || DEFAULT_LIB;
+  const id = genId();
+
+  // Sicherheitsgrenze: Speicher-Werte müssen unter 5MB bleiben. Wir kappen
+  // großzügig darunter, damit auch nach JSON-Verpackung noch Luft bleibt.
+  const HARD_CHAR_CAP = 3500000;
+  let safeText = text;
+  let wasCapped = false;
+  if(safeText.length > HARD_CHAR_CAP){
+    safeText = safeText.slice(0, HARD_CHAR_CAP);
+    wasCapped = true;
+  }
+
+  // Wichtig: ERST den eigentlichen Inhalt speichern, ERST DANACH den Index
+  // aktualisieren. So bleibt kein "Geister-Dokument" in der Liste zurück,
+  // falls das Speichern fehlschlägt (z.B. weil eine PDF zu viel Text enthält).
+  try{
+    await storage.set('doc:'+id, JSON.stringify({name, text:safeText, library:lib}));
+    await storage.set('content:'+id, JSON.stringify({summary:null, flashcards:null, tasks:null}));
+  }catch(e){
+    throw new Error(`"${name}" konnte nicht gespeichert werden (vermutlich zu groß). ${e.message||e}`);
+  }
+
+  docsIndex.unshift({id, name, createdAt:Date.now(), chars:safeText.length, library:lib, capped:wasCapped});
+  await saveIndex();
+  try{ await storage.set('last-library', lib); }catch(e){}
+  expandedLibraries.add(lib);
+  renderSearchLibrarySelect();
+  renderLibraryDatalist();
+  renderDocList();
+  selectDoc(id);
+}
+
+async function selectDoc(id){
+  activeId = id;
+  activeTab = 'summary';
+  mode = 'doc';
+  const meta = docsIndex.find(d=>d.id===id);
+  if(meta) expandedLibraries.add(meta.library||DEFAULT_LIB);
+  renderDocList();
+  await renderMain();
+}
+
+async function getDoc(id){
+  const r = await storage.get('doc:'+id);
+  return JSON.parse(r.value);
+}
+async function getContent(id){
+  const r = await storage.get('content:'+id);
+  return JSON.parse(r.value);
+}
+async function setContent(id, content){
+  await storage.set('content:'+id, JSON.stringify(content));
+}
+
+async function renderMain(){
+  const main = document.getElementById('main');
+  if(mode === 'search'){
+    return renderSearchView();
+  }
+  if(!activeId){
+    main.innerHTML = `<div class="empty-state"><div class="glyph">✦</div>
+      Wähle links ein Dokument aus, füge ein neues hinzu, oder durchsuche oben alle Dokumente auf einmal.</div>`;
+    return;
+  }
+  const meta = docsIndex.find(d=>d.id===activeId);
+  if(!meta){
+    activeId = null;
+    return renderMain();
+  }
+
+  let content;
+  try{
+    content = await getContent(activeId);
+  }catch(e){
+    // Verwaister/defekter Eintrag: Inhalt fehlt im Speicher. Statt abzustürzen,
+    // klar melden und Entfernen anbieten.
+    main.innerHTML = `
+      <div class="doc-header"><h2>${escapeHtml(meta.name)}</h2></div>
+      <div class="err">Dieses Dokument ist beschädigt oder unvollständig gespeichert (Inhalt fehlt).</div>
+      <button class="gen-btn secondary" id="removeBrokenBtn" style="margin-top:10px;">Aus der Bibliothek entfernen</button>
+    `;
+    document.getElementById('removeBrokenBtn').addEventListener('click', ()=>deleteDoc(activeId));
+    return;
+  }
+
+  main.innerHTML = `
+    <div class="doc-header">
+      <h2>${escapeHtml(meta.name)}</h2>
+      <span class="meta">${meta.chars.toLocaleString('de-DE')} Zeichen · hinzugefügt ${new Date(meta.createdAt).toLocaleDateString('de-DE')}</span>
+    </div>
+    ${meta.capped ? `<div class="no-docs-warn" style="margin-bottom:14px;">Dieses Dokument war sehr groß und wurde beim Speichern gekürzt. Für vollständige Ergebnisse am besten in kleinere Dateien (z.B. pro Kapitel) aufteilen.</div>` : ''}
+    <div class="tabs">
+      <button class="tab-btn ${activeTab==='summary'?'active':''}" data-tab="summary">Lernzettel</button>
+      <button class="tab-btn ${activeTab==='flashcards'?'active':''}" data-tab="flashcards">Karteikarten</button>
+      <button class="tab-btn ${activeTab==='tasks'?'active':''}" data-tab="tasks">Aufgaben</button>
+    </div>
+    <div id="panelHost"></div>
+  `;
+  main.querySelectorAll('.tab-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{ activeTab=b.dataset.tab; renderMain(); });
+  });
+  renderPanel(content);
+}
+
+function renderPanel(content){
+  const host = document.getElementById('panelHost');
+  if(activeTab==='summary') return renderSummaryPanel(host, content);
+  if(activeTab==='flashcards') return renderFlashcardsPanel(host, content);
+  if(activeTab==='tasks') return renderTasksPanel(host, content);
+}
+
+function renderSummaryPanel(host, content){
+  if(!content.summary){
+    host.innerHTML = `<button class="gen-btn" id="genBtn">Lernzettel generieren</button>
+      <p class="hint">Erstellt eine strukturierte Zusammenfassung — mit den Begriffen und der Vorgehensweise aus deinem Dokument.</p>`;
+    host.querySelector('#genBtn').addEventListener('click', ()=>runGeneration('summary'));
+    return;
+  }
+  host.innerHTML = `<div class="lernzettel">${content.summary}</div>
+    <button class="gen-btn secondary" id="regenBtn" style="margin-top:14px;">Neu generieren</button>`;
+  host.querySelector('#regenBtn').addEventListener('click', ()=>runGeneration('summary'));
+}
+
+function renderFlashcardsPanel(host, content){
+  if(!content.flashcards){
+    host.innerHTML = `<button class="gen-btn" id="genBtn">Karteikarten generieren</button>
+      <p class="hint">Erstellt Frage/Antwort-Karten. Klicke auf eine Karte, um sie umzudrehen.</p>`;
+    host.querySelector('#genBtn').addEventListener('click', ()=>runGeneration('flashcards'));
+    return;
+  }
+  host.innerHTML = `<div class="deck">${content.flashcards.map((c,i)=>`
+      <div class="flashcard ${flippedCards.has(i)?'flipped':''}" data-i="${i}">
+        <div class="flashcard-inner">
+          <div class="flashcard-face">
+            <div class="tag">Frage ${i+1}</div>
+            <div class="txt">${escapeHtml(c.frage)}</div>
+          </div>
+          <div class="flashcard-face flashcard-back">
+            <div class="tag">Antwort</div>
+            <div class="txt">${escapeHtml(c.antwort)}</div>
+          </div>
+        </div>
+      </div>`).join('')}</div>
+    <button class="gen-btn secondary" id="regenBtn" style="margin-top:18px;">Neu generieren</button>`;
+  host.querySelectorAll('.flashcard').forEach(f=>{
+    f.addEventListener('click', ()=>{
+      const i = f.dataset.i;
+      if(flippedCards.has(Number(i))) flippedCards.delete(Number(i)); else flippedCards.add(Number(i));
+      f.classList.toggle('flipped');
+    });
+  });
+  host.querySelector('#regenBtn').addEventListener('click', ()=>{ flippedCards.clear(); runGeneration('flashcards'); });
+}
+
+function renderTasksPanel(host, content){
+  if(!content.tasks){
+    host.innerHTML = `<button class="gen-btn" id="genBtn">Aufgaben generieren</button>
+      <p class="hint">Erstellt Übungsaufgaben im Stil deines Dokuments, mit einblendbarer Lösung.</p>`;
+    host.querySelector('#genBtn').addEventListener('click', ()=>runGeneration('tasks'));
+    return;
+  }
+  host.innerHTML = `<div class="task-list">${content.tasks.map((t,i)=>`
+      <div class="task">
+        <div class="q">${i+1}. ${escapeHtml(t.frage)}</div>
+        <button class="reveal-btn" data-i="${i}">Lösung anzeigen</button>
+        <div class="a" id="ans${i}">${escapeHtml(t.antwort)}</div>
+      </div>`).join('')}</div>
+    <button class="gen-btn secondary" id="regenBtn" style="margin-top:18px;">Neu generieren</button>`;
+  host.querySelectorAll('.reveal-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const a = document.getElementById('ans'+b.dataset.i);
+      a.classList.toggle('shown');
+      b.textContent = a.classList.contains('shown') ? 'Lösung verbergen' : 'Lösung anzeigen';
+    });
+  });
+  host.querySelector('#regenBtn').addEventListener('click', ()=>runGeneration('tasks'));
+}
+
+async function runGeneration(kind){
+  const host = document.getElementById('panelHost');
+  host.innerHTML = `<div class="loading"><div class="spinner"></div> Wird erstellt — basierend auf deinem Dokument...</div>`;
+  try{
+    const doc = await getDoc(activeId);
+    const text = doc.text.slice(0, 14000);
+    const truncNote = doc.text.length > 14000 ? "\n\n[Hinweis: Dokument war länger, es wurde gekürzt.]" : "";
+
+    let instruction, maxWords;
+    if(kind==='summary'){
+      instruction = `Erstelle einen Lernzettel als HTML-Fragment (nur <h3> für Themenblöcke und <ul><li> für Stichpunkte, sonst nichts). Nutze AUSSCHLIESSLICH die Begriffe, Formeln, Methoden und die Reihenfolge/Vorgehensweise aus dem folgenden Dokument. Erfinde keine alternativen Herangehensweisen und ergänze nur dann etwas, wenn es zum Verständnis absolut nötig ist — markiere Ergänzungen dann mit "(Ergänzung)". Antworte NUR mit dem HTML-Fragment, kein Markdown, keine Code-Fences, keine Einleitung.`;
+    } else if(kind==='flashcards'){
+      instruction = `Erstelle 8 Karteikarten (Frage/Antwort) zum folgenden Dokument. Nutze exakt die Begriffe und Vorgehensweisen aus dem Dokument, keine abweichenden Methoden von außerhalb. Antworte NUR mit einem JSON-Array, jedes Element {"frage":"...","antwort":"..."}. Kein Markdown, keine Code-Fences, kein Fließtext davor oder danach.`;
+    } else {
+      instruction = `Erstelle 6 Übungsaufgaben zum folgenden Dokument, im gleichen Stil und mit den gleichen Methoden/Begriffen wie im Dokument (keine abweichenden Lösungswege von außerhalb). Antworte NUR mit einem JSON-Array, jedes Element {"frage":"...","antwort":"..."} wobei "antwort" die vollständige Musterlösung ist. Kein Markdown, keine Code-Fences, kein Fließtext davor oder danach.`;
+    }
+
+    const response = await callClaude(`${instruction}\n\n--- DOKUMENT ("${doc.name}") ---\n${text}${truncNote}`);
+    let raw = response;
+
+    const content = await getContent(activeId);
+    if(kind==='summary'){
+      content.summary = raw;
+    } else {
+      content[kind] = JSON.parse(raw);
+    }
+    await setContent(activeId, content);
+    renderMain();
+  }catch(e){
+    host.innerHTML = `<div class="err">Fehler beim Erstellen: ${escapeHtml(e.message || String(e))}. Bitte nochmal versuchen.</div>
+      <button class="gen-btn" id="retryBtn">Erneut versuchen</button>`;
+    document.getElementById('retryBtn').addEventListener('click', ()=>runGeneration(kind));
+  }
+}
+
+function renderSearchView(){
+  const main = document.getElementById('main');
+
+  if(docsIndex.length === 0){
+    main.innerHTML = `
+      <div class="doc-header"><h2>Themensuche</h2></div>
+      <div class="no-docs-warn">Noch keine Dokumente vorhanden. Füge links mindestens eines hinzu, damit ich etwas durchsuchen kann.</div>
+    `;
+    return;
+  }
+
+  const scopeCount = lastSearch && lastSearch.library && lastSearch.library!=='all'
+    ? docsIndex.filter(d=>(d.library||DEFAULT_LIB)===lastSearch.library).length
+    : docsIndex.length;
+  const scopeLabel = lastSearch && lastSearch.library && lastSearch.library!=='all' ? `in "${lastSearch.library}"` : 'insgesamt';
+
+  let body;
+  if(lastSearch && lastSearch.loading){
+    body = `<div class="loading"><div class="spinner"></div> Durchsuche ${scopeCount} Dokument(e) ${scopeLabel}...</div>`;
+  } else if(lastSearch && lastSearch.error){
+    body = `<div class="err">${escapeHtml(lastSearch.error)}</div>
+      <button class="gen-btn" id="retrySearchBtn">Erneut versuchen</button>`;
+  } else if(lastSearch && lastSearch.html){
+    body = `<div class="search-answer">${lastSearch.html}
+      ${lastSearch.sources && lastSearch.sources.length ? `<div class="sources">Quellen: ${lastSearch.sources.map(s=>`<span class="src-chip">${escapeHtml(s)}</span>`).join('')}</div>` : ''}
+    </div>`;
+  } else {
+    body = `<p class="hint">Stelle oben links eine Frage — wähle optional eine Bibliothek aus, um die Suche einzugrenzen. Ich antworte nur mit dem, was tatsächlich in den Dokumenten steht.</p>`;
+  }
+
+  main.innerHTML = `
+    <div class="doc-header">
+      <h2>Themensuche${lastSearch && lastSearch.query ? ': "' + escapeHtml(lastSearch.query) + '"' : ''}</h2>
+      <span class="meta">${scopeCount} Dokument(e) ${scopeLabel}</span>
+    </div>
+    ${body}
+  `;
+  const retryBtn = document.getElementById('retrySearchBtn');
+  if(retryBtn) retryBtn.addEventListener('click', ()=>runGlobalSearch(lastSearch.query, lastSearch.library));
+}
+
+async function runGlobalSearch(query, library){
+  query = (query||'').trim();
+  if(!query) return;
+  library = library || 'all';
+  mode = 'search';
+  lastSearch = {query, library, loading:true};
+  activeId = null;
+  renderDocList();
+  renderSearchView();
+
+  try{
+    const scope = library==='all' ? docsIndex : docsIndex.filter(d => (d.library||DEFAULT_LIB)===library);
+    if(scope.length === 0){
+      lastSearch = {query, library, error: 'Keine Dokumente in dieser Bibliothek gefunden.'};
+      return renderSearchView();
+    }
+    // Kontext aus den relevanten Dokumenten zusammenstellen (Budget pro Dokument begrenzen)
+    const perDocCap = Math.max(1500, Math.floor(50000 / Math.max(scope.length,1)));
+    let combined = '';
+    const includedNames = [];
+    for(const meta of scope){
+      const doc = await getDoc(meta.id);
+      const slice = doc.text.slice(0, perDocCap);
+      combined += `\n\n=== DOKUMENT: "${doc.name}" ===\n${slice}${doc.text.length>perDocCap ? '\n[gekürzt]' : ''}`;
+      includedNames.push(doc.name);
+    }
+
+    const instruction = `Du bekommst mehrere Dokumente eines Schülers/einer Schülerin, gefolgt von einer Frage. Beantworte die Frage AUSSCHLIESSLICH auf Basis der Dokumente – nutze deren Begriffe, Methoden und Vorgehensweise, keine abweichenden Ansätze von außerhalb. Wenn die Antwort in den Dokumenten nicht enthalten ist, sage das ehrlich und explizit, statt zu raten oder allgemeines Wissen einzustreuen. Formatiere die Antwort als kurzes HTML-Fragment (nur <h3>, <p>, <ul><li>, sonst nichts). Antworte NUR mit dem HTML-Fragment, ohne Einleitung, ohne Code-Fences. Gib am Ende KEINE Quellenliste im Text aus (die zeige ich separat an).`;
+
+    const raw = await callClaude(`${instruction}\n${combined}\n\n=== FRAGE ===\n${query}`);
+
+    lastSearch = {query, library, html: raw, sources: includedNames};
+    renderSearchView();
+  }catch(e){
+    lastSearch = {query, library, error: 'Fehler bei der Suche: ' + (e.message || String(e))};
+    renderSearchView();
+  }
+}
+
+document.getElementById('globalSearchBtn').addEventListener('click', ()=>{
+  runGlobalSearch(document.getElementById('globalSearchInput').value, document.getElementById('searchLibrarySelect').value);
+});
+document.getElementById('globalSearchInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') runGlobalSearch(e.target.value, document.getElementById('searchLibrarySelect').value);
+});
+
+// --- Upload / Paste handling ---
+document.getElementById('addToggle').addEventListener('click', ()=>{
+  const p = document.getElementById('addPanel');
+  p.style.display = p.style.display==='none' ? 'flex' : 'none';
+});
+// Hinweis: Listener für #pickPdf, #pickFolder und #pasteSave werden ausschließlich
+// in resetAddPanel() gesetzt, da diese Buttons bei jedem Reset neu erzeugt werden.
+
+async function extractPdfText(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  let text = '';
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(it=>it.str).join(' ') + '\n\n';
+  }
+  return text;
+}
+
+async function processFiles(fileList){
+  const panel = document.getElementById('addPanel');
+  const library = (document.getElementById('libraryInput')?.value || '').trim() || DEFAULT_LIB;
+  const allFiles = Array.from(fileList);
+  const pdfFiles = allFiles.filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+  const ignoredCount = allFiles.length - pdfFiles.length;
+  if(pdfFiles.length === 0){
+    panel.innerHTML = `<div class="err">Keine PDF-Dateien in der Auswahl gefunden${allFiles.length ? ` (${allFiles.length} Datei(en) waren keine PDFs)` : ''}.</div>`;
+    return;
+  }
+  let done = 0, skipped = [];
+  for(const file of pdfFiles){
+    panel.innerHTML = `<div class="loading"><div class="spinner"></div> Lese ${escapeHtml(file.name)} (${done+1}/${pdfFiles.length}) → Bibliothek "${escapeHtml(library)}"...</div>`;
+    try{
+      const text = await extractPdfText(file);
+      if(text.trim().length < 20){
+        skipped.push(file.name + ' (kein Text gefunden)');
+      } else {
+        await addDocument(file.name.replace(/\.pdf$/i,''), text, library);
+      }
+    }catch(err){
+      skipped.push(file.name + ' (Fehler: ' + (err.message||err) + ')');
+    }
+    done++;
+  }
+  await resetAddPanel();
+  if(skipped.length || ignoredCount > 0){
+    const p = document.getElementById('addPanel');
+    p.style.display = 'flex';
+    p.innerHTML = `<div class="err">${done - skipped.length} von ${pdfFiles.length} PDFs hinzugefügt.
+      ${ignoredCount > 0 ? `<br>${ignoredCount} Datei(en) waren keine PDFs und wurden ignoriert.` : ''}
+      ${skipped.length ? `<br>Übersprungen:<br>${skipped.map(escapeHtml).join('<br>')}` : ''}</div>
+      <button id="closeSkip">Ok</button>`;
+    document.getElementById('closeSkip').addEventListener('click', ()=>{ p.style.display='none'; });
+  }
+}
+
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  if(!e.target.files.length) return;
+  await processFiles(e.target.files);
+  e.target.value = '';
+});
+document.getElementById('folderInput').addEventListener('change', async (e)=>{
+  if(!e.target.files.length) return;
+  await processFiles(e.target.files);
+  e.target.value = '';
+});
+// Hinweis: der #pasteSave-Listener wird ausschließlich in resetAddPanel() gesetzt,
+// da der Button bei jedem Reset neu erzeugt wird.
+
+async function resetAddPanel(){
+  let lastLib = DEFAULT_LIB;
+  try{ const r = await storage.get('last-library'); if(r) lastLib = r.value; }catch(e){}
+  document.getElementById('addPanel').innerHTML = `
+    <label class="lib-label">Bibliothek / Fach</label>
+    <input type="text" id="libraryInput" list="libraryOptions" placeholder="z.B. Biologie" value="${escapeHtml(lastLib)}">
+    <datalist id="libraryOptions"></datalist>
+    <button id="pickPdf">PDF(s) auswählen</button>
+    <button id="pickFolder">Ganzen Ordner auswählen</button>
+    <div style="font-size:10.5px;color:var(--ink-light);text-align:center;">(Ordner-Auswahl nur in Chrome/Edge)</div>
+    <div style="text-align:center;font-size:11px;color:var(--ink-light)">— oder —</div>
+    <input type="text" id="pasteName" placeholder="Titel (z.B. Biologie Kap. 4)">
+    <textarea id="pasteText" placeholder="Text hier einfügen..."></textarea>
+    <button id="pasteSave">Als Dokument speichern</button>
+  `;
+  renderLibraryDatalist();
+  document.getElementById('pickPdf').addEventListener('click', ()=> document.getElementById('fileInput').click());
+  document.getElementById('pickFolder').addEventListener('click', ()=> document.getElementById('folderInput').click());
+  document.getElementById('pasteSave').addEventListener('click', async ()=>{
+    const name = document.getElementById('pasteName').value.trim() || 'Unbenanntes Dokument';
+    const text = document.getElementById('pasteText').value.trim();
+    const library = document.getElementById('libraryInput').value.trim() || DEFAULT_LIB;
+    if(text.length < 10){ return; }
+    await addDocument(name, text, library);
+    await resetAddPanel();
+  });
+  document.getElementById('addPanel').style.display = 'none';
+}
+
+(async function init(){
+  await loadApiKey();
+  updateApiKeyStatus();
+  await loadIndex();
+  getLibraries().forEach(l => expandedLibraries.add(l)); // beim ersten Laden alles offen
+  renderSearchLibrarySelect();
+  await resetAddPanel();
+  renderDocList();
+  renderMain();
+})();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(err=>{
+      console.warn('Service Worker konnte nicht registriert werden:', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
